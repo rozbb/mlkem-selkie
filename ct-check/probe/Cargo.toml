@@ -1,0 +1,16 @@
+[package]
+name = "ct-scan-probe"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Instantiates every mlkem-selkie operation so the instruction scanner has code to disassemble"
+
+# Standalone, so the crate's own manifest needs no workspace. scan-instrs.py seeds this crate's
+# Cargo.lock from the repo's before every build, so the dependencies scanned are the locked ones.
+[workspace]
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+mlkem-selkie = { path = "../.." }

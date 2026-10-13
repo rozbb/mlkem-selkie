@@ -1,0 +1,40 @@
+# Variable-latency instructions that are known to operate on PUBLIC data.
+#
+# Format:  category | symbol substring | why the operands are public
+#
+# Each line is a security claim. A hit is only safe if the *operands* cannot depend on secret
+# data; the scanner sees instructions, not dataflow, so it cannot check that for you. Before
+# adding a line, read the source and convince yourself, then say here what convinced you.
+#
+# Symbols are v0 mangling as llvm-objdump demangles it, which is what scan-instrs.py pins the
+# builds to. Note the shape for an inherent method: `<Type>::method`, not `Type::method`. Copy the
+# symbol from a FAIL report rather than writing it out. An entry that stops matching fails the
+# scan, so the list cannot quietly go stale.
+#
+# Do not add an entry whose pattern covers a function that touches secrets, even if the one hit
+# in it today is public: it would hide the next one. `--selftest` enforces this for the symbols in
+# ALLOWLIST_MUST_NOT_COVER in scan-instrs.py. Change the source instead.
+
+# `core`'s Zip adapter divides to compute a shortest-of-two length, and `ChunksExact(Mut)` divides
+# the slice length by the chunk size for its own length. Both are slice lengths, fixed by the
+# parameter set.
+non-doit:div | core::iter::adapters::zip | slice lengths, fixed by the parameter set
+non-doit:div | core::slice::iter::ChunksExact | slice length and chunk size, fixed by the parameter set
+
+# `bytes.chunks_exact(32 * d)` when `d` is not constant-folded: `d` is the parameter set's
+# compression width, and `bytes` a ciphertext of fixed length.
+non-doit:div | RqVector<mlkem_selkie::parameters::MLKEM512>>::decode_decompress | length / (32 * d), both fixed by the parameter set
+non-doit:div | RqVector<mlkem_selkie::parameters::MLKEM768>>::decode_decompress | length / (32 * d), both fixed by the parameter set
+non-doit:div | RqVector<mlkem_selkie::parameters::MLKEM1024>>::decode_decompress | length / (32 * d), both fixed by the parameter set
+
+# `TqMatrix::expand` computes the matrix index `(n % k, n / k)` of each entry of A_hat. `n` is a
+# loop counter and `k` the module rank; the matrix itself is public, sampled from `rho`.
+non-doit:div | TqMatrix<mlkem_selkie::parameters::MLKEM512>>::expand::{closure#1} | loop counter / module rank
+non-doit:div | TqMatrix<mlkem_selkie::parameters::MLKEM768>>::expand::{closure#1} | loop counter / module rank
+non-doit:div | TqMatrix<mlkem_selkie::parameters::MLKEM1024>>::expand::{closure#1} | loop counter / module rank
+
+# The AVX2 rejection sampler counts accepted lanes with POPCNT. Its input is XOF(rho, j, i), and
+# `rho` is public (it is in the encapsulation key); tests/ctgrind.rs declassifies it for the same
+# reason. `sample_ntt` and `sample_ntt_x4` are where `reject` gets inlined.
+non-doit:popcnt | mlkem_selkie::sampling::arch::avx2::reject | XOF output of the public seed rho
+non-doit:popcnt | <mlkem_selkie::algebraic::poly::TqElement>::sample_ntt | XOF output of the public seed rho
